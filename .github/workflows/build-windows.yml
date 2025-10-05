@@ -1,0 +1,83 @@
+name: Build Windows App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.24.0'
+        channel: 'stable'
+        
+    - name: Get dependencies
+      run: flutter pub get
+      
+    - name: Build Windows app
+      run: flutter build windows --release
+      
+    - name: Create installer directory
+      run: mkdir installer
+      
+    - name: Copy build files
+      run: |
+        xcopy "build\windows\runner\Release\*" "installer\" /E /I /Y
+        
+    - name: Create batch file for easy installation
+      run: |
+        echo @echo off > installer\install.bat
+        echo echo Installing POS App... >> installer\install.bat
+        echo echo. >> installer\install.bat
+        echo echo Copying files to Program Files... >> installer\install.bat
+        echo mkdir "C:\Program Files\POS App" 2>nul >> installer\install.bat
+        echo xcopy "pos_app.exe" "C:\Program Files\POS App\" /Y >> installer\install.bat
+        echo xcopy "data" "C:\Program Files\POS App\data\" /E /I /Y >> installer\install.bat
+        echo xcopy "flutter_windows.dll" "C:\Program Files\POS App\" /Y >> installer\install.bat
+        echo xcopy "*.dll" "C:\Program Files\POS App\" /Y >> installer\install.bat
+        echo echo. >> installer\install.bat
+        echo echo Creating desktop shortcut... >> installer\install.bat
+        echo powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%USERPROFILE%\Desktop\POS App.lnk'); $Shortcut.TargetPath = 'C:\Program Files\POS App\pos_app.exe'; $Shortcut.Save()" >> installer\install.bat
+        echo echo. >> installer\install.bat
+        echo echo Installation complete! >> installer\install.bat
+        echo echo You can now run the app from the desktop shortcut or Start menu. >> installer\install.bat
+        echo pause >> installer\install.bat
+        
+    - name: Create README for Windows installation
+      run: |
+        echo # POS App - Windows Installation > installer\README.txt
+        echo. >> installer\README.txt
+        echo ## Quick Installation: >> installer\README.txt
+        echo 1. Right-click on install.bat and select "Run as administrator" >> installer\README.txt
+        echo 2. Follow the prompts to install the app >> installer\README.txt
+        echo 3. A desktop shortcut will be created automatically >> installer\README.txt
+        echo. >> installer\README.txt
+        echo ## Manual Installation: >> installer\README.txt
+        echo 1. Copy all files to a folder (e.g., C:\POS App\) >> installer\README.txt
+        echo 2. Run pos_app.exe to start the application >> installer\README.txt
+        echo. >> installer\README.txt
+        echo ## System Requirements: >> installer\README.txt
+        echo - Windows 10 or later >> installer\README.txt
+        echo - 64-bit processor >> installer\README.txt
+        echo - 100 MB free disk space >> installer\README.txt
+        echo. >> installer\README.txt
+        echo ## Troubleshooting: >> installer\README.txt
+        echo - If the app doesn't start, make sure all .dll files are in the same folder as pos_app.exe >> installer\README.txt
+        echo - Run as administrator if you encounter permission issues >> installer\README.txt
+        
+    - name: Upload Windows build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-build
+        path: installer/
+        retention-days: 30
